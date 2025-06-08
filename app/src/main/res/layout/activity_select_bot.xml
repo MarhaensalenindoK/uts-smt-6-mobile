@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/black_background"
+    tools:context=".SelectBotActivity">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar_select_bot"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/purple_primary"
+        app:title="Pilih Chatbot untuk Digunakan"
+        app:navigationIcon="?attr/homeAsUpIndicator"
+        app:titleTextColor="@color/white_text"/>
+
+    <TextView
+        android:id="@+id/text_view_empty_state_select"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:text="Anda belum membuat bot apapun.\nSilakan buat bot terlebih dahulu di menu 'Kelola Bot'."
+        android:textColor="@color/white_text_secondary"
+        android:textSize="18sp"
+        android:gravity="center"
+        android:layout_gravity="center"
+        android:visibility="gone"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_view_select_bot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="8dp"
+        tools:listitem="@layout/item_select_bot"/>
+
+</LinearLayout>

@@ -14,20 +14,37 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CryptoKISS"
         tools:targetApi="31">
+
+        <!-- MainActivity sebagai Splash Screen / Launcher -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.NoActionBar"> <!-- Theme tanpa action bar untuk splash -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
+        <!-- Activity Baru -->
+        <activity
+            android:name=".MainMenuActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ManageBotsActivity"
+            android:exported="false"
+            android:parentActivityName=".MainMenuActivity" />
+
+        <activity
+            android:name=".SelectBotActivity"
+            android:exported="false"
+            android:parentActivityName=".MainMenuActivity" />
+
         <activity
             android:name=".ChatActivity"
-            android:exported="false"
-            android:parentActivityName=".MainActivity">
+            android:exported="false">
+            <!-- Parent activity bisa dihapus atau disesuaikan nanti -->
         </activity>
 
     </application>

@@ -1,17 +1,15 @@
 package com.example.cryptokiss
 
-import android.content.Intent // Import Intent
+import android.content.Intent
 import android.os.Bundle
-import android.widget.Button
-// import android.widget.Toast // Tidak lagi diperlukan jika langsung pindah Activity
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.Toolbar
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-// Pastikan R diimport dengan benar, biasanya otomatis jika package name sesuai
-// import com.example.cryptokiss.R
 
+// MainActivity sekarang berfungsi sebagai Splash Screen
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -24,15 +22,12 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        val toolbar: Toolbar = findViewById(R.id.toolbar_main)
-        setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayShowTitleEnabled(false)
-
-        val startChatButton: Button = findViewById(R.id.button_start_chat)
-        startChatButton.setOnClickListener {
-            // Membuat Intent untuk berpindah dari MainActivity ke ChatActivity
-            val intent = Intent(this, ChatActivity::class.java)
-            startActivity(intent) // Memulai ChatActivity
-        }
+        // Hapus tombol dan logika intent lama
+        // Tahan selama 2 detik lalu pindah ke MainMenuActivity
+        Handler(Looper.getMainLooper()).postDelayed({
+            val intent = Intent(this, MainMenuActivity::class.java)
+            startActivity(intent)
+            finish() // Tutup activity ini agar tidak bisa kembali ke splash screen
+        }, 2000)
     }
 }

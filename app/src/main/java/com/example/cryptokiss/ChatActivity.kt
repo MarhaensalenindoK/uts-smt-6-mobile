@@ -8,16 +8,14 @@ import android.widget.ImageButton
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
-import androidx.lifecycle.lifecycleScope // Import untuk lifecycleScope
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.ai.client.generativeai.Chat
 import com.google.ai.client.generativeai.GenerativeModel
-// Import exception yang relevan dari library Gemini
-// import com.google.ai.client.generativeai.type.GenerationException // Sementara dikomentari jika unresolved
 import com.google.ai.client.generativeai.type.ServerException
-// import com.google.ai.client.generativeai.type.RequestException // Sementara dikomentari jika unresolved
-import com.google.ai.client.generativeai.type.content // Untuk membangun histori chat
-import kotlinx.coroutines.launch // Import untuk launch coroutine
+import com.google.ai.client.generativeai.type.content
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 class ChatActivity : AppCompatActivity() {
@@ -30,50 +28,44 @@ class ChatActivity : AppCompatActivity() {
     private lateinit var chatAdapter: ChatAdapter
     private val messageList = mutableListOf<ChatMessage>()
 
-    // PENTING: Ganti dengan API Key Anda yang sebenarnya!
-    private val GEMINI_API_KEY = "AIzaSyD4-u25dcY64aXNKLQlDbh4FJwOE6Jn7xo" // GANTI INI
+    private val GEMINI_API_KEY = BuildConfig.GEMINI_API_KEY
     private lateinit var generativeModel: GenerativeModel
-    private var chatSession: com.google.ai.client.generativeai.Chat? = null
+    private var chatSession: Chat? = null
 
-    // ID untuk pesan loading, agar mudah ditemukan dan dihapus
     private var loadingMessageId: String? = null
 
-    private val cryptoSystemPrompt = """
-        Anda adalah asisten AI yang berpengetahuan luas tentang cryptocurrency dan pasar terkait.
-        Tujuan Anda adalah untuk menjawab pertanyaan pengguna secara akurat, jelas, dan ringkas.
-        Fokus hanya pada topik cryptocurrency, teknologi blockchain, analisis pasar (secara umum, bukan nasihat finansial),
-        berita crypto, dan definisi istilah terkait crypto. Hindari membahas topik di luar itu.
-        Jika pengguna bertanya di luar topik crypto, ingatkan mereka dengan sopan untuk tetap pada topik.
-        Jaga agar jawaban tetap sederhana dan mudah dimengerti (Keep It Simple & Smart).
-        Jangan memberikan nasihat keuangan atau investasi secara langsung.
-    """.trimIndent()
-
+    // >>> PERUBAHAN: Variabel untuk menyimpan prompt yang aktif <<<
+    private lateinit var activeSystemPrompt: String
+    private lateinit var activeBotName: String
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_chat)
 
+        // >>> PERUBAHAN: Mengambil data dari Intent <<<
+        activeBotName = intent.getStringExtra("BOT_NAME") ?: "Crypto Assistant"
+        activeSystemPrompt = intent.getStringExtra("BOT_PROMPT") ?: getString(R.string.default_crypto_prompt)
+
         toolbarChat = findViewById(R.id.toolbar_chat)
         setSupportActionBar(toolbarChat)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.setDisplayShowHomeEnabled(true)
+        supportActionBar?.title = activeBotName // Set judul toolbar sesuai nama bot
 
         recyclerViewChatMessages = findViewById(R.id.recycler_view_chat_messages)
         editTextChatMessage = findViewById(R.id.edit_text_chat_message)
         buttonSendChatMessage = findViewById(R.id.button_send_chat_message)
 
-        // Pastikan API Key sudah diisi
-        if (GEMINI_API_KEY == "MASUKKAN_API_KEY_ANDA_DI_SINI") {
-            Toast.makeText(this, "Harap masukkan API Key Gemini Anda di ChatActivity.kt", Toast.LENGTH_LONG).show()
+        if (GEMINI_API_KEY.isBlank() || GEMINI_API_KEY == "MASUKKAN_API_KEY_ANDA_DI_SINI") {
+            Toast.makeText(this, "Harap masukkan API Key Gemini Anda di file local.properties", Toast.LENGTH_LONG).show()
             Log.e("ChatActivity", "API Key belum diatur.")
             editTextChatMessage.isEnabled = false
             buttonSendChatMessage.isEnabled = false
-            return // Hentikan eksekusi lebih lanjut jika API Key tidak ada
+            return
         }
 
         try {
             generativeModel = GenerativeModel(
-                modelName = "gemini-1.5-flash-latest", // Atau model lain yang valid
+                modelName = "gemini-1.5-flash-latest",
                 apiKey = GEMINI_API_KEY,
             )
         } catch (e: Exception) {
@@ -81,8 +73,9 @@ class ChatActivity : AppCompatActivity() {
             Toast.makeText(this, "Gagal menginisialisasi AI. Periksa API Key dan koneksi internet.", Toast.LENGTH_LONG).show()
             editTextChatMessage.isEnabled = false
             buttonSendChatMessage.isEnabled = false
+            // Hentikan eksekusi jika model gagal diinisialisasi
+            return
         }
-
 
         setupRecyclerView()
         startChatSessionWithInitialGreeting()
@@ -111,7 +104,7 @@ class ChatActivity : AppCompatActivity() {
     private fun setupRecyclerView() {
         chatAdapter = ChatAdapter(messageList)
         recyclerViewChatMessages.layoutManager = LinearLayoutManager(this).apply {
-            // stackFromEnd = true
+            // stackFromEnd = true // Sebaiknya false agar chat mulai dari atas
         }
         recyclerViewChatMessages.adapter = chatAdapter
     }
@@ -147,7 +140,6 @@ class ChatActivity : AppCompatActivity() {
 
 
     private fun startChatSessionWithInitialGreeting() {
-        // Hanya jalankan jika generativeModel sudah diinisialisasi
         if (!::generativeModel.isInitialized) {
             Log.w("ChatActivity", "GenerativeModel not initialized. Skipping initial greeting.")
             return
@@ -155,13 +147,14 @@ class ChatActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
+                // >>> PERUBAHAN: Menggunakan prompt yang dinamis <<<
                 chatSession = generativeModel.startChat(
                     history = listOf(
-                        content(role = "user") { text(cryptoSystemPrompt) },
-                        content(role = "model") { text("Tentu, saya mengerti. Saya akan fokus pada topik cryptocurrency. Ada yang bisa saya bantu?") }
+                        content(role = "user") { text(activeSystemPrompt) },
+                        content(role = "model") { text("Tentu, saya siap. Ada yang bisa saya bantu?") }
                     )
                 )
-                val greetingText = "Halo! Saya Crypto KISS Assistant. Siap membantu Anda menjelajahi dunia crypto. Silakan bertanya!"
+                val greetingText = "Halo! Saya $activeBotName. Siap membantu Anda. Silakan bertanya!"
                 val aiGreetingMessage = ChatMessage(
                     id = UUID.randomUUID().toString(),
                     text = greetingText,
@@ -187,17 +180,10 @@ class ChatActivity : AppCompatActivity() {
 
     private fun sendMessageToGemini(userMessageText: String) {
         val currentChatSession = chatSession
-        if (currentChatSession == null) {
-            Log.e("ChatActivity", "Chat session is not initialized.")
+        if (currentChatSession == null || !::generativeModel.isInitialized) {
+            Log.e("ChatActivity", "Chat session or model is not initialized.")
             removeLoadingMessage()
             addTechnicalDifficultyMessage("Sesi chat belum siap.")
-            return
-        }
-
-        if (!::generativeModel.isInitialized) {
-            Log.e("ChatActivity", "GenerativeModel not initialized. Cannot send message.")
-            removeLoadingMessage()
-            addTechnicalDifficultyMessage("AI belum siap.")
             return
         }
 
@@ -205,7 +191,6 @@ class ChatActivity : AppCompatActivity() {
             try {
                 val response = currentChatSession.sendMessage(userMessageText)
                 removeLoadingMessage()
-
                 response.text?.let { aiResponseText ->
                     val aiMessage = ChatMessage(
                         id = UUID.randomUUID().toString(),
@@ -215,29 +200,13 @@ class ChatActivity : AppCompatActivity() {
                     )
                     addMessageToChat(aiMessage)
                 } ?: run {
-                    val blockReason = response.candidates.firstOrNull()?.finishReason
-                    val safetyRatings = response.candidates.firstOrNull()?.safetyRatings
-                    Log.w("ChatActivity", "AI response text is null. Block reason: $blockReason, Safety Ratings: $safetyRatings")
-                    addTechnicalDifficultyMessage("Tidak ada respons teks dari AI. Kemungkinan diblokir karena alasan keamanan atau lainnya.")
+                    Log.w("ChatActivity", "AI response text is null. Reason: ${response.candidates.firstOrNull()?.finishReason}")
+                    addTechnicalDifficultyMessage("Tidak ada respons teks dari AI.")
                 }
-
-                // Hapus atau komentari blok catch untuk GenerationException dan RequestException jika unresolved
-                /*
-                } catch (e: GenerationException) {
-                    Log.e("ChatActivity", "GenerationException: ${e.message}", e)
-                    removeLoadingMessage()
-                    addTechnicalDifficultyMessage("Error saat menghasilkan respons: ${e.message?.take(100)}")
-                */
             } catch (e: ServerException) {
                 Log.e("ChatActivity", "ServerException: ${e.message}", e)
                 removeLoadingMessage()
                 addTechnicalDifficultyMessage("Error server dari AI: ${e.message?.take(100)}")
-                /*
-                } catch (e: RequestException) {
-                    Log.e("ChatActivity", "RequestException: ${e.message}", e)
-                    removeLoadingMessage()
-                    addTechnicalDifficultyMessage("Error permintaan ke AI: ${e.message?.take(100)}")
-                */
             }
             catch (e: Exception) { // Tangkap semua exception lain sebagai fallback
                 Log.e("ChatActivity", "Generic error sending message: ${e.message}", e)
@@ -248,7 +217,7 @@ class ChatActivity : AppCompatActivity() {
     }
 
     private fun addTechnicalDifficultyMessage(customMessage: String? = null) {
-        val errorMessage = customMessage ?: "Maaf, terjadi sedikit kendala teknis saat menghubungi AI."
+        val errorMessage = customMessage ?: "Maaf, terjadi sedikit kendala teknis."
         addMessageToChat(
             ChatMessage(
                 id = UUID.randomUUID().toString(),
